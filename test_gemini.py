@@ -3,6 +3,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 import os
 import json
 import time
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # セキュリティ上の注意：
 # APIキーをコード内に直接記載するのは避け、環境変数やStreamlitのシークレットマネージャーを使用してください。
@@ -29,6 +32,32 @@ if 'stage' not in st.session_state:
 for key in ['step', 'requirements', 'recommendation', 'period', 'budget', 'detailed_advice', 'next_questions', 'chat_history']:
     if key not in st.session_state:
         st.session_state[key] = None
+
+def send_email(subject, body):
+    try:
+        smtp_server = st.secrets["email"]["smtp_server"]
+        smtp_port = st.secrets["email"]["smtp_port"]
+        sender_email = st.secrets["email"]["sender_email"]
+        sender_password = st.secrets["email"]["sender_password"]
+        recipient_email = st.secrets["email"]["recipient_email"]
+
+        # メールのセットアップ
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = recipient_email
+        msg['Subject'] = subject
+
+        msg.attach(MIMEText(body, 'plain'))
+
+        # SMTPサーバーに接続してメールを送信
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()  # TLSを開始
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+
+        st.success("メールが正常に送信されました。")
+    except Exception as e:
+        st.error(f"メールの送信中にエラーが発生しました: {e}")
 
 # 関数定義
 def get_tech_recommendation(requirements):
@@ -64,6 +93,12 @@ def get_tech_recommendation(requirements):
         end = response_content.rfind("}") + 1
         json_str = response_content[start:end]
         recommendations = json.loads(json_str)
+
+        # メールの送信
+        subject = "新しいプロジェクト概要が提出されました"
+        body = f"ユーザーが以下のプロジェクト概要を提出しました:\n\n{requirements}"
+        send_email(subject, body)
+
         return recommendations
     except json.JSONDecodeError:
         # エラーハンドリング: JSON解析に失敗した場合
