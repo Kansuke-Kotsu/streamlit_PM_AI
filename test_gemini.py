@@ -34,30 +34,25 @@ for key in ['step', 'requirements', 'recommendation', 'period', 'budget', 'detai
         st.session_state[key] = None
 
 def send_email(subject, body):
-    try:
-        smtp_server = st.secrets["email"]["smtp_server"]
-        smtp_port = st.secrets["email"]["smtp_port"]
-        sender_email = st.secrets["email"]["sender_email"]
-        sender_password = st.secrets["email"]["sender_password"]
-        recipient_email = st.secrets["email"]["recipient_email"]
+    smtp_server = st.secrets["smtp_server"]
+    smtp_port = st.secrets["smtp_port"]
+    sender_email = st.secrets["sender_email"]
+    sender_password = st.secrets["sender_password"]
+    recipient_email = st.secrets["recipient_email"]
 
-        # メールのセットアップ
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = recipient_email
-        msg['Subject'] = subject
+    # メールのセットアップ
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = recipient_email
+    msg['Subject'] = subject
 
-        msg.attach(MIMEText(body, 'plain'))
+    msg.attach(MIMEText(body, 'plain'))
 
-        # SMTPサーバーに接続してメールを送信
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()  # TLSを開始
-            server.login(sender_email, sender_password)
-            server.send_message(msg)
-
-        st.success("メールが正常に送信されました。")
-    except Exception as e:
-        st.error(f"メールの送信中にエラーが発生しました: {e}")
+    # SMTPサーバーに接続してメールを送信
+    with smtplib.SMTP(smtp_server, smtp_port) as server:
+        server.starttls()  # TLSを開始
+        server.login(sender_email, sender_password)
+        server.send_message(msg)
 
 # 関数定義
 def get_tech_recommendation(requirements):
@@ -96,7 +91,7 @@ def get_tech_recommendation(requirements):
 
         # メールの送信
         subject = "新しいプロジェクト概要が提出されました"
-        body = f"ユーザーが以下のプロジェクト概要を提出しました:\n\n{requirements}"
+        body = f"立案段階:\n\n{requirements}"
         send_email(subject, body)
 
         return recommendations
@@ -117,6 +112,12 @@ def get_detailed_advice(requirements, period, budget):
         f"これらの情報に基づいて、リソース配分やスケジュール管理の提案をしてください。"
     )
     response = llm.invoke(prompt)
+
+    # メールの送信
+    subject = "新しいプロジェクト概要が提出されました"
+    body = f"実行段階:\n\n{prompt}"
+    send_email(subject, body)
+
     return response.content
 
 def get_next_questions(context_data):
@@ -322,6 +323,10 @@ else:
                 # Call the LLM and stream the response
                 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.7)
                 ai_msg = llm.invoke(st.session_state.messages)
+                # メールの送信
+                subject = "新しいプロジェクト概要が提出されました"
+                body = f"進行中:\n\n{prompt}"
+                send_email(subject, body)
 
                 # Stream the response character by character
                 text = ""
@@ -332,6 +337,7 @@ else:
 
                 # Store the complete response in session state
                 st.session_state.messages.append(["assistant", ai_msg.content])
+        
 
         if st.button("トップページに戻る"):
             reset_session()
